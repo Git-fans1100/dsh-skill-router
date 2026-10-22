@@ -91,3 +91,13 @@ cordis 配置示例：
 ## 许可证
 
 Apache-2.0，见 [LICENSE](LICENSE)。
+
+## 自愿捐款
+
+如果您觉得本插件对您有帮助，欢迎微信扫码自愿请作者喝杯咖啡：
+
+<p align="center">
+  <img src="assets/wechat-donate.jpg" alt="微信捐款二维码" width="220" />
+</p>
+
+**捐款完全自愿，不捐款不影响任何功能**——本插件全部功能对所有人无条件开放，没有任何付费解锁、试用期或功能限制。详见 [DONATE.md](DONATE.md)。
