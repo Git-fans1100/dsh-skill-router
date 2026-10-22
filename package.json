@@ -1,0 +1,35 @@
+{
+  "name": "dsh-skill-router",
+  "version": "0.2.2",
+  "description": "Skill Router for DeepSeek Harness — global capability dispatch: read-only skill/MCP index, capability_search / capability_load meta tools, unified scorer, per-Bot preheat mounting with anti-double-mount handshake against ds-bot's smart-scheduling switch (SPEC.md v1.0, migration step 2).",
+  "type": "module",
+  "main": "./index.js",
+  "scripts": {
+    "check": "node --check index.js && node --check src/host/indexer.js && node --check src/host/scorer.js && node --check src/host/usage.js && node --check src/host/tools.js && node --check src/host/mount.js && echo syntax ok",
+    "test": "node --test test/*.test.mjs"
+  },
+  "files": [
+    "index.js",
+    "src/host/",
+    "test/",
+    "cordis.patch.yml",
+    "SPEC.md",
+    "README.md",
+    "DONATE.md",
+    "LICENSE",
+    "assets/"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*"
+  },
+  "license": "Apache-2.0"
+}

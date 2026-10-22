@@ -1,0 +1,5 @@
+# 把技能调度中心挂到宿主 loader 树（与 ds-bot 的 cordis.patch.yml 同款写法）。
+# 浏览器半边（client UI）v0.1 骨架不提供，后续版本经 dsh.client 声明补上。
+- insert:
+    - id: skill-router
+      name: dsh-skill-router

@@ -1,0 +1,9 @@
+# 依赖与打包产物不入库
+node_modules/
+*.tgz
+# 日志与临时文件
+*.log
+.tmp-*/
+
+# README 仅本地保留，不入库
+/README.md
