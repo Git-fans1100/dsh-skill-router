@@ -107,6 +107,52 @@ export function precisionScore(entry, queryGrams, signals = {}) {
     - failPenalty(fails)
 }
 
+// 同义扩展（SPEC §4.2 v1.1）：词法 bigram 的已知弱点是「查询词 ≠ 描述词」
+// （意译/中英混用漏检）。内置高频同义组 + config.synonyms 用户词典，组内任一
+// 词命中查询时，组内其余词并入查询集合参与检索。克制原则：只收「查询侧词 ↔
+// 技能描述侧词」确实双向常见的对，词典污染比缺口更伤精度。
+const BUILT_IN_SYNONYMS = [
+  ['生存曲线', 'km', 'kaplan-meier'],
+  ['热图', 'heatmap', '热力图'],
+  ['图表', 'chart', 'plot'],
+  ['森林图', 'forest plot'],
+  ['检索', 'search', '查找'],
+  ['统计', 'statistics'],
+  ['导出', 'export'],
+  ['下载', 'download'],
+  ['转换', 'convert'],
+  ['图片', 'image', 'figure'],
+]
+
+// 正则元字符转义（英文词要拼进 \b 词边界正则）。
+const escapeRe = word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// 词命中判定：纯中文词无边界概念用 includes；含英文的词必须整词命中
+// （防 'km' 误配 'bookmark' 这类子串）。
+const hasWord = (normalized, word) =>
+  /^[\u4e00-\u9fff]+$/.test(word)
+    ? normalized.includes(word)
+    : new RegExp(`\\b${escapeRe(word)}\\b`).test(normalized)
+
+// 查询扩展：返回追加同义变体后的查询串（原词在前——命中率分母变大是已知
+// 代价，换来同义命中进入分子；粗排召回与精排口径因此一致，实现最简）。
+// dict 形如 [['a','b'], ['c','d']]，组内任一词命中 → 其余未出现词追加。
+export function expandQuery(query, dict = []) {
+  const normalized = String(query ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+  if (normalized === '') return normalized
+  const extras = []
+  for (const group of dict) {
+    if (!Array.isArray(group) || group.length === 0) continue
+    if (group.some(word => hasWord(normalized, String(word).toLowerCase()))) {
+      for (const word of group) {
+        const lower = String(word).toLowerCase()
+        if (!hasWord(normalized, lower) && !extras.includes(lower)) extras.push(lower)
+      }
+    }
+  }
+  return extras.length > 0 ? `${normalized} ${extras.join(' ')}` : normalized
+}
+
 // 统一入口：query 原文 → 粗排 Top 20 → 精排 Top 5。
 // 返回 { matches: [{ item, relevance, score }], total, matched }：
 //   - matches：精排后的前 5（分数降序），工具层直接格式化；
@@ -123,6 +169,10 @@ export function rank(items, query, signals = {}) {
 
 // install：挂到运行时（保持 index.js 的 MODULES 装配模式一致——
 // tools.js 通过 rt.rank 调用，测试也可绕过 rt 直接用纯函数）。
+// 词典在 install 时一次性合并（内置表 + config.synonyms 用户词典），
+// rank 闭包先 expandQuery 再检索——调用方无感知。
 export function install(rt) {
-  rt.rank = (items, query, signals) => rank(items, query, signals)
+  const userDict = Array.isArray(rt.config?.synonyms) ? rt.config.synonyms : []
+  const dict = [...BUILT_IN_SYNONYMS, ...userDict.filter(group => Array.isArray(group) && group.length > 0)]
+  rt.rank = (items, query, signals) => rank(items, expandQuery(query, dict), signals)
 }

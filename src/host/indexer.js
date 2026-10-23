@@ -8,6 +8,8 @@
 // 直接返回缓存索引——send/reconcile 高频路径上零全量 IO；签名变才重建。
 // 并发闸（护栏 4）：全文读取统一限 8 并发（骨架只在 load 时读全文）。
 import { createHash } from 'node:crypto'
+import { resolve, sep } from 'node:path'
+import { readFile } from 'node:fs/promises'
 
 // 宿主 loader 树上 MCP client 条目的插件名（与 ds-bot capabilities.js 一致）。
 const MCP_CLIENT_NAME = '@deepseek-ai/dsh-mcp-client'
@@ -152,6 +154,26 @@ export function install(rt) {
     })
     if (content.trim() !== '') contentCache.set(name, { signature: rt.index.signature, content })
     return content
+  }
+
+  // 读技能声明的单个资源文件（capability_load 的 ref 模式，SPEC §3.3）。
+  // 能力探测式设计：registry.get 的 result 携带 base 路径（baseDir/root/dir/
+  // path 任一字段）才可读；不暴露 → 返回 null，tools 层降级为明确提示 +
+  // 软失败（ref 未命中不硬失败）。路径逃逸防护：resolve 后必须仍落在 base
+  // 目录内，防「ref:"../../etc"」越界读取。
+  rt.readSkillRef = async (name, ref) => {
+    try {
+      const { result } = await withSkillScope(ctx, (reg, options) => reg.get(name, options))
+      const base = [result?.baseDir, result?.root, result?.dir, result?.path]
+        .find(value => typeof value === 'string' && value !== '')
+      const rel = String(ref ?? '').trim()
+      if (base === undefined || rel === '') return null
+      const resolvedBase = resolve(base)
+      const target = resolve(resolvedBase, rel)
+      if (target !== resolvedBase && !target.startsWith(resolvedBase + sep)) return null
+      return await readFile(target, 'utf8')
+    } catch { /* base 未暴露 / 文件不存在 / 读失败：统一降级为 null。 */ }
+    return null
   }
 
   // 按标题切节（L3 分节，第 1 步即提供——纯文本处理，无成本）。

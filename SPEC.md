@@ -65,6 +65,9 @@ L3 分节层（并入）：按标题切片，skill_load(section) 点名取节，
 - N 增长只影响检索索引大小，**不影响每步延迟与挂载耗时**（规模化的核心保证）
 
 ### 3.2 L1 brief 抽取
+
+> **实施顺序（v1.1 增补）**：路线 B 先行——插件当前无宿主 LLM 通道（第 1 步 V1 验证项未接线），路线 A 的「模型按模板抽取」无从发起；路线 B 本就是规格定义的降级态，先落 B 即可全量生效、零新依赖。路线 A 待模型通道验证后接入，届时 B 自动退为 A 失败时的兜底，两者共享同一套缓存键与硬规则。
+
 - **路线 A（主线）**：技能暴露/导入时用模型按固定五段模板离线抽取一次：
   1. 用途与触发场景 2. 核心能力清单 3. 关键约束/禁忌 4. 参数与路径速查 5. 「本摘要省略了什么、何时必须取全文」
 - **路线 B（降级兜底）**：模型通道不可用/抽取失败时，规则机械精简（标题树+各节首句、丢代码块注释与铺陈）
@@ -78,16 +81,23 @@ L3 分节层（并入）：按标题切片，skill_load(section) 点名取节，
 ### 3.3 L2/L3 元工具接口草案
 
 ```text
-capability_search(query: string, scope?: 'bot'|'global')
+capability_search(query: string, scope?: 'bot'|'global', names_only?: boolean)
   → 返回 Top 5 行式摘要，每项 40-60 tokens：
     name | 一句话描述(≤30字) | ★相关度 | 已预热标记
+  → names_only:true 只返回「name [kind]」行（返回体积约降 60%，模型已知
+    目标名时用）；此时仍计入 search 漏斗
   → 同会话相同查询返回缓存结果并提示（防死循环重搜）
   → 零结果：返回热门 Top 5 + 「无精确匹配，以下为技能库大类」
 
-capability_load(name: string, full?: boolean, section?: string)
+capability_load(name: string, full?: boolean, section?: string, ref?: string)
   → 默认返回 brief（300-800 tok）+ 尾部「何时取全文」指引
   → full:true 返回 SKILL.md 原文
   → section:"标题" 返回该节（brief 中必须展示完整目录树供点名）
+  → ref:"相对路径" 返回技能声明的单个资源文件内容（SKILL.md 内引用的
+    references/scripts 文件）；实现按「registry 能力探测」分级：
+    registry 暴露 base 路径 → 直接读文件；不暴露 → 返回明确提示（本技能
+    不支持 ref 读取，请用 full）并计一次软失败——ref 未命中不硬失败
+  → ref / section / full 互斥：同时给出按 ref > section > full 优先级取一
   → 调用即计数：(sessionId, skillName) 写入使用统计（升温数据源）
 ```
 
@@ -111,6 +121,7 @@ capability_load(name: string, full?: boolean, section?: string)
 | 信号 | 来源 | 版本 |
 |---|---|---|
 | 文本相关度 | 查询 ↔ name/description/whenToUse/brief，bigram（中文免分词） | v1 ✅ |
+| 同义扩展 | 查询经同义/中英词典展开后并入 bigram 集合（内置高频表 + config.synonyms 用户词典） | v1.1 ✅ |
 | 使用频率 | (botId/sessionId, skill) 计数 | v1 ✅ |
 | 预热加成 | 角色匹配命中的预热集 | v1 ✅ |
 | 群协同 | 同群其他成员近 7 天用过 | v1 ✅ |

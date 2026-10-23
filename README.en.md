@@ -9,13 +9,14 @@ A skill dispatch center plugin for DeepSeek Harness (DSH) — it replaces "all s
 | Capability | Description |
 | --- | --- |
 | Read-only index | Builds a unified skill/MCP index from the host skills registry and the loader tree; metadata signatures drive invalidation awareness (a stable signature means zero registry rebuilds) |
-| `capability_search` | Searches skills/MCP by the task text and returns the top 5 line summaries (about 40-60 tokens each); same-session repeat queries are served from a signature-checked cache |
-| `capability_load` | Reads a skill's full text or a single section by name (`section` parameter); MCP entries return usage guidance; every call is counted |
+| `capability_search` | Searches skills/MCP by the task text and returns the top 5 line summaries (about 40-60 tokens each); `names_only:true` returns bare name lines (~60% smaller); same-session repeat queries are served from a signature-checked cache |
+| `capability_load` | Reads a skill by name: a condensed 300-800 token brief by default (TOC + per-section first lines), `section` for one section, `full:true` for the complete text, `ref` for a referenced file; MCP entries return usage guidance; every call is counted |
 | Unified scorer | Bigram field-weighted relevance (name×3 / whenToUse×2 / description×1) plus a two-stage funnel (coarse top 20 → fine top 5) |
 | Usage stats | Per-session × per-skill call counts and the search→load→use funnel, persisted to `state.json` as the preheat ranking basis |
 | Preheat mounting | Pre-mounts up to 5 frequently used skills per Bot session based on the last 7 days of usage and the Bot profile (with an anti-double-mount handshake, failure circuit breaker and hysteresis-based displacement); directory hard cap is 20 |
 | Dual-mode switch | Follows the host smart-scheduling switch: off = keep the host's native full mounting; on = switch to this plugin's on-demand dispatch |
-| Brief extraction layer | `load` will default to a 300-800 token five-section template summary, with `full:true` returning the entire text (planned) |
+| Synonym expansion | Queries are expanded through built-in Chinese-English synonym groups plus a user `synonyms` dictionary before bigram matching, so paraphrased and mixed-language queries no longer miss (v0.3.0) |
+| Brief extraction layer | `load` returns a condensed 300-800 token brief by default (route B: TOC + per-section first lines, filler and code excluded); `full:true` returns the entire text; route A (model-generated five-section summaries) activates once the host LLM channel is wired up |
 
 ## How it works (why it saves tokens)
 
@@ -45,7 +46,7 @@ npm pack
 
 Standard procedure to install into a profile:
 
-1. `npm pack` produces `dsh-skill-router-0.2.2.tgz`;
+1. `npm pack` produces `dsh-skill-router-0.3.0.tgz`;
 2. Install that tgz under `~/.dsh/profiles/desktop/`;
 3. Add the entry declared by `cordis.patch.yml` (`id: skill-router` / `name: dsh-skill-router`) to the profile's cordis manifest;
 4. Restart the host and confirm the plugin loads on stdout without errors.
@@ -73,6 +74,7 @@ Typical scenario: when skill/MCP counts grow and full mounting bloats the contex
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `home` | string | `$DSH_HOME/skill-router` (falls back to `~/.dsh/skill-router` without `DSH_HOME`) | Data directory holding `state.json` (usage counts + funnel stats) and the handshake signal files |
+| `synonyms` | string[][] | 10 built-in Chinese-English synonym groups | Extra custom groups (e.g. `[["生存曲线","km"]]`): when any word of a group appears in the query, the remaining words join the search |
 
 cordis configuration example:
 

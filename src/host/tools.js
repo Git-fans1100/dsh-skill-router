@@ -61,12 +61,17 @@ export function install(rt) {
     return `- ${item.name} [${item.kind}] — ${desc} ★${rel.toFixed(2)}${preheated ? ' [已预热]' : ''}`
   }
 
+  // names_only 行：只有「name [kind]」，返回体积约降 60%（SPEC §3.3）——
+  // 模型已知目标名（如模型自述要用某技能）时无需描述与分数。
+  const nameLineOf = match => `- ${match.item.name} [${match.item.kind}]`
+
   ctx.tools.register(defineTool({
     name: 'capability_search',
     description: 'Search the capability directory (skills + MCP servers) for ones relevant to a task. Call it before doing specialized work the base tools may not cover, then use capability_load on the best match to read its instructions.',
     parameters: {
       query: { type: 'string', required: true, description: 'The task or need, in natural language (Chinese or English)' },
       scope: { type: 'string', enum: ['all', 'skill', 'mcp'], description: '"all" (default) searches skills and MCP servers; "skill" or "mcp" limits the kind' },
+      names_only: { type: 'boolean', description: 'true = return only "name [kind]" lines (~60% smaller). Use when you already know roughly which capability you want and just need the exact name.' },
     },
     output,
     async execute(args, exec) {
@@ -74,7 +79,8 @@ export function install(rt) {
       if (query === '') return 'capability_search needs a non-empty query describing the task.'
       const sessionId = exec?.agent?.id ?? 'anon'
       const kind = args.scope === 'skill' || args.scope === 'mcp' ? args.scope : 'all'
-      const cacheKey = `${sessionId}|${kind}|${query}`
+      const namesOnly = args.names_only === true
+      const cacheKey = `${sessionId}|${kind}|${namesOnly ? 'n' : 'f'}|${query}`
       const { items, signature } = await rt.getIndex()
       // 缓存命中：签名一致才复用（registry 更新 → 签名变 → 自动重算）。
       const cached = rt.searchCache.get(cacheKey)
@@ -94,9 +100,10 @@ export function install(rt) {
         store(text)
         return text
       }
+      const line = namesOnly ? nameLineOf : lineOf
       const text = [
         `Top ${matches.length} of ${matched} candidates (${total} indexed):`,
-        ...matches.map(lineOf),
+        ...matches.map(line),
         'Use capability_load with the exact name to read the full instructions.',
       ].join('\n')
       store(text)
@@ -106,11 +113,12 @@ export function install(rt) {
 
   ctx.tools.register(defineTool({
     name: 'capability_load',
-    description: 'Read a skill\'s full instructions (or one section) after capability_search picks it. For MCP servers it explains how their tools are exposed instead.',
+    description: 'Read a skill\'s instructions after capability_search picks it: by default a condensed brief (TOC + per-section first lines), optionally the full text, one section, or a referenced file. For MCP servers it explains how their tools are exposed instead.',
     parameters: {
       name: { type: 'string', required: true, description: 'Exact capability name from capability_search' },
       section: { type: 'string', description: 'Optional section title to load only that part of the skill' },
-      full: { type: 'boolean', description: 'Reserved: return the full content. (Step 1 always returns full content; a condensed brief mode arrives later)' },
+      full: { type: 'boolean', description: 'true = return the full SKILL.md instead of the condensed brief (use when the brief is not enough)' },
+      ref: { type: 'string', description: 'Relative path of a file the skill references (e.g. references/foo.md, scripts/x.cmd). Only works when the host exposes the skill\'s base path.' },
     },
     output,
     async execute(args, exec) {
@@ -144,23 +152,39 @@ export function install(rt) {
       }
       // 计数（升温数据源）：load 即启用意图（usage.recordLoad）。
       rt.recordLoad(sessionId, name)
+      // ref 模式（优先级 ref > section > full，SPEC §3.3）：读技能声明的单个
+      // 资源文件。registry 未暴露 base 路径/文件不存在 → 降级提示 + 软失败，
+      // 不硬失败——模型可改走 full/section，省一轮报错重试。
+      const ref = String(args.ref ?? '').trim()
+      if (ref !== '') {
+        const refContent = await rt.readSkillRef(name, ref)
+        if (refContent === null) {
+          rt.recordSoftFail(sessionId, name)
+          return `Skill "${name}" does not support ref:"${ref}" (host does not expose the skill's base path, or the file does not exist). Use section or full:true instead.`
+        }
+        return [`[skill: ${name}] ref:${ref}`, '', refContent].join('\n')
+      }
       const content = await rt.readSkillContent(name)
       if (content.trim() === '') return `Skill "${name}" is indexed but its content is empty or unreadable.`
       const section = String(args.section ?? '').trim()
       if (section !== '') {
         const part = rt.readSection(content, section)
-        // 节名未命中不硬失败：返回全文并提示——模型可改用 full 语义（默认已是全文）
-        // 或换个节名再试，比抛错省一轮重试。
+        // 节名未命中不硬失败：返回全文并提示——模型可改用 full 语义（默认已是
+        // brief）或换个节名再试，比抛错省一轮重试。
         if (part === '') {
           return [`[skill: ${name}] Section "${section}" not found; full content below instead.`, '', content].join('\n')
         }
         return [`[skill: ${name}] Section "${section}"`, '', part].join('\n')
       }
-      // 默认路径：全文 + 头部提示。
-      // TODO(第 3 步)：此处接入 brief 抽取层（300-800 token 五段模板，SPEC §4）：
-      // 默认返 brief、full:true 才返全文——单次 load 的 token 从 1-5K 降到 ~800。
-      const head = `[skill: ${name}] If this skill does not fit the task after reading, call capability_search again with different keywords.`
-      return [head, '', content].join('\n')
+      // full:true：SKILL.md 原文（brief 不足时的兜底，头部提示引导回检索）。
+      if (args.full === true) {
+        const head = `[skill: ${name}] If this skill does not fit the task after reading, call capability_search again with different keywords.`
+        return [head, '', content].join('\n')
+      }
+      // 默认路径：brief（300-800 token 机械精简：目录树 + 各节首句，SPEC §3.2
+      // 路线 B）——单次 load 的 token 从 1-5K 降到 ~800 以内。
+      const head = `[skill: ${name}] Condensed brief. Use full:true for the complete text, section:"title" for one section, ref:"path" for a referenced file.`
+      return [head, '', rt.extractBrief(content)].join('\n')
     },
   }))
 }

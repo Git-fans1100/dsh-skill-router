@@ -1,31 +1,31 @@
-// dsh-skill-router：DeepSeek Harness 技能调度中心（SPEC.md v1.0，迁移第 2 步）。
+// dsh-skill-router：DeepSeek Harness 技能调度中心（SPEC.md v1.1，迁移第 3 步启动）。
 //
-// 第 2 步范围（接管开关，第 1 步骨架之上新增）：
-//   1. 预热集挂载引擎（src/host/mount.js）：智能调度模式下把每个 Bot 的
-//      预热集（≤5 项技能）挂进其全部会话；滞回换位 + 14 天零调用移出 + 熔断。
-//   2. 与 ds-bot 的信号文件握手（先摘后挂，防双挂载窗口，SPEC §7.2）：
-//      dsbot-signal.json（ds-bot 写 / router 读）+ router-signal.json（反向）。
-//   3. 统一评分器离线口：预热集用画像文本（instructions+群主题）跑同一评分器，
-//      与 capability_search 在线口径一致（SPEC §4.5）。
+// 第 3 步范围（本版启动的部分）：
+//   1. brief 抽取层·路线 B（src/host/brief.js）：capability_load 默认返回
+//      300-800 token 机械精简（目录树 + 各节首句），full:true 才返全文；
+//   2. 同义扩展检索（scorer.js）：内置中英同义组 + config.synonyms 用户词典；
+//   3. capability_search 加 names_only（只返名字行，体积约降 60%）；
+//   4. capability_load 加 ref（技能资源文件读取，registry 能力探测 + 降级）。
 //
-// 沿用第 1 步：只读索引器、capability_search / capability_load 元工具、
-// 使用计数 + 漏斗统计。明确不做（第 3 步）：brief 抽取（load 暂返全文）。
+// 沿用第 1/2 步：只读索引器、元工具、使用统计 + 漏斗、预热挂载引擎（含与
+// ds-bot 的信号握手）。明确不做（后续）：路线 A 模型抽取（待宿主 LLM 通道）、
+// 群协同信号、修正 U 型曲线。
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import * as indexer from './src/host/indexer.js'
 import * as scorer from './src/host/scorer.js'
 import * as usage from './src/host/usage.js'
+import * as brief from './src/host/brief.js'
 import * as tools from './src/host/tools.js'
 import * as mount from './src/host/mount.js'
 
 export const name = 'dsh-skill-router'
 // 版本：与 package.json 保持一致（router-signal.json 携带给 ds-bot 展示）。
-// v0.2.1：预热挂载引擎实测修复——resolveAgent 超时闸 + tick 看门狗 + 心跳
-// 独立于业务 tick（详见 mount.js 内注释）。
-// v0.2.2：关闭流程 ack 修复——router 进入非智能状态即无条件刷 releasedAt
-// （旧逻辑只在真摘除过挂载时写，空闲 router 导致 ds-bot 关闭白等 5s 超时）。
-export const version = '0.2.2'
+// v0.2.2：关闭流程 ack 修复——router 进入非智能状态即无条件刷 releasedAt。
+// v0.3.0：第 3 步首批——brief 路线 B 默认化、同义扩展检索、names_only、
+// ref 资源读取（能力探测降级），SPEC 增补至 v1.1。
+export const version = '0.3.0'
 
 // cordis 服务注入：注册工具需要 'tools' 服务。
 // skills / agentPresets / loader 走 ctx.get() 运行时动态获取——与 ds-bot
@@ -77,11 +77,13 @@ export function createRuntime(ctx, config = {}) {
       rt.warn('save state failed:', error?.message ?? error)
     }
   }
-  // 各模块 install(rt)：索引器 → 使用统计 → 工具 → 预热挂载（挂载依赖前
-  // 三者的运行时函数：getIndex / rank / freshHeat / readSkillContent）。
+  // 各模块 install(rt)：索引器 → 使用统计 → brief 抽取 → 工具 → 预热挂载
+  //（挂载依赖前几者的运行时函数：getIndex / rank / freshHeat /
+  // readSkillContent；tools 的 load 默认路径依赖 rt.extractBrief）。
   indexer.install(rt)
   scorer.install(rt)
   usage.install(rt)
+  brief.install(rt)
   tools.install(rt)
   mount.install(rt)
   return rt

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import * as indexer from '../src/host/indexer.js'
 import * as scorer from '../src/host/scorer.js'
 import * as usageModule from '../src/host/usage.js'
+import * as briefModule from '../src/host/brief.js'
 import * as tools from '../src/host/tools.js'
 
 const INDEX = {
@@ -27,10 +28,14 @@ function fakeRuntime() {
   indexer.install(rt)
   scorer.install(rt)
   usageModule.install(rt)
+  briefModule.install(rt)
   rt.saveState = () => {} // 测试不落盘
   rt.index = INDEX
   rt.getIndex = async () => rt.index
   rt.readSkillContent = async name => (name === '图表生成' ? '## 用法\n生成图表的步骤。' : '')
+  // ref 读取默认 stub 为「registry 未暴露 base 路径」；需要内容场景的用例
+  // 自行覆写。
+  rt.readSkillRef = async () => null
   tools.install(rt)
   return { rt, find: name => registered.find(tool => tool.name === name) }
 }
@@ -104,13 +109,51 @@ test('capability_search: 空查询直接拒绝且不计数', async () => {
   assert.equal(rt.state.funnel.search, 0)
 })
 
-test('capability_load: 全文 + 头部提示 + load 计数与热度', async () => {
+test('capability_load: 默认返回 brief + 头部提示 + load 计数与热度', async () => {
   const { rt, find } = fakeRuntime()
   const text = await find('capability_load').execute({ name: '图表生成' }, { agent: { id: 's1' } })
+  // fixture 全文很短（≤800 token）→ extractBrief 短路原样返回，内容不丢。
   assert.ok(text.includes('## 用法'))
-  assert.ok(text.includes('capability_search')) // 头部提示引导改查
+  assert.ok(text.includes('Condensed brief')) // 新头部提示：指引 full/section/ref
   assert.equal(rt.state.funnel.load, 1)
   assert.equal(rt.heatOf('图表生成'), 1)
+})
+
+test('capability_load: full:true 返回原文全文（头部引导改查）', async () => {
+  const { find } = fakeRuntime()
+  const text = await find('capability_load').execute({ name: '图表生成', full: true }, { agent: { id: 's1' } })
+  assert.ok(text.includes('## 用法'))
+  assert.ok(text.includes('capability_search')) // full 路径头部提示引导改查
+})
+
+test('capability_load: ref 命中返回文件内容，未命中降级提示 + 软失败', async () => {
+  const { rt, find } = fakeRuntime()
+  // 未命中（默认 stub：registry 未暴露 base）→ 降级提示且不硬失败。
+  const miss = await find('capability_load').execute({ name: '图表生成', ref: 'references/a.md' }, { agent: { id: 's1' } })
+  assert.ok(miss.includes('does not support ref'))
+  assert.ok(miss.includes('full:true'))
+  assert.equal(rt.softFailOf('s1', '图表生成'), 1) // SPEC §3.3：ref 降级计软失败
+  // 命中 → 返回文件内容。
+  rt.readSkillRef = async (name, ref) => (ref === 'references/a.md' ? '参考内容' : null)
+  const hit = await find('capability_load').execute({ name: '图表生成', ref: 'references/a.md' }, { agent: { id: 's1' } })
+  assert.ok(hit.includes('references/a.md'))
+  assert.ok(hit.includes('参考内容'))
+  // ref 优先级高于 section/full：两者同时给出时走 ref。
+  const priority = await find('capability_load').execute({ name: '图表生成', ref: 'references/a.md', section: '用法', full: true }, { agent: { id: 's1' } })
+  assert.ok(priority.includes('参考内容'))
+  assert.ok(!priority.includes('生成图表的步骤'))
+})
+
+test('capability_search: names_only 只返回名字行（体积更小）', async () => {
+  const { find } = fakeRuntime()
+  const full = await find('capability_search').execute({ query: '画图' }, { agent: { id: 's1' } })
+  const brief = await find('capability_search').execute({ query: '画图', names_only: true }, { agent: { id: 's1' } })
+  assert.ok(brief.includes('图表生成 [skill]'))
+  assert.ok(!brief.includes('★'), 'names_only 不带相关度分数')
+  assert.ok(!brief.includes('生成统计图表'), 'names_only 不带描述')
+  assert.ok(brief.length < full.length)
+  // 两种模式缓存独立（同签名互不串结果）。
+  assert.notEqual(full, brief)
 })
 
 test('capability_load: section 命中只返回该节', async () => {
