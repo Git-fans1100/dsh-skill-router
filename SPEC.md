@@ -1,4 +1,4 @@
-# dsh-skill-router 规格文档 v1.2
+# dsh-skill-router 规格文档 v1.3
 
 > 技能调度中心：面向 DeepSeek Harness（DSH）的独立插件——四级渐进披露 + 统一评分器 + 全局会话技能调度。
 > 本文档为完整实施方案，自包含，供后续开发会话直接加载执行。
@@ -144,6 +144,24 @@ capability_stats()（v1.2，只读元工具，零参数）
 | 0 | 冷技能 | 中性 |
 | 1-2 | 有真实流量、在被磨合 | 微加分 |
 | ≥3/周 | 持续对不齐 = 质量问题 | 降权 + 结果行标注「近期频繁修订」 |
+
+### 3.4 设置栏目与总开关（v1.3，蓝本：simdt-consult v1.6.0 本机实证）
+
+宿主原生设置页对插件开放 `settings.section` 槽位；host 半可经宿主 web 服务注册 HTTP 路由。全部 API 形状以本机 `simdt-consult` 插件为蓝本：
+
+- **host 路由**：`ctx.web.webServer.register({ kind:'exact', path, handler })`，handler 为原生 `(req,res)`；异常包装为 400 JSON（不退宿主进程）。宿主 web 服务缺席时软跳过注册并 console.warn（旧宿主兼容）。
+- **client 工厂**：`window.__ModuleLoader__.load({ id, factory(require){...} })`；工厂内 `require('react')`（仅平台共享模块），返回 `{ inject:['slots','locale'], apply(ctx){...} }`。
+- **设置栏目注册**：`ctx.slots.inject('settings.section', () => ctx.slots.register({ name:'settings.section', id, order:60, locale:NS, label:惰性求值, inject:()=>({t}) }, SettingsRoot))`（对齐官方 ui-agent-preset 模式；order 避开官方编号）。
+
+**路由清单**（前缀 `/skill-router/api/`，鉴权/端口由宿主 web 服务承载）：
+1. `GET /state` → `{ version, enabled, indexSize, preheat, funnel }`（statsText 同数据源）
+2. `POST /settings/save` → body `{enabled:boolean}`，**布尔白名单**（非布尔 400）；写入内存标志并落盘
+3. `GET /donation-qr` → 包内 `assets/wechat-donate.jpg`，Content-Type image/jpeg（自愿捐款全局规则）
+
+**总开关语义**（config 存 `<home>/config.json`：`{ enabled:boolean, savedAt:iso }`，缺省/坏 JSON/缺文件一律 true）：
+- **关闭**（setEnabled(false)）：① 工具短路——已注册的 capability_search/load/stats execute 返回 `router disabled` 提示且不计数（模型可感知并回退宿主原生挂载）；② 预热停摆——mount 的 interval/boot 回调开头检查 isEnabled，心跳（router-signal）与调度 tick **一起停**：ds-bot 在 90s 新鲜窗过期后判定 router 离线，自动回退原生全量挂载（绝不允许"在线但不调度"导致技能全量丢失）；③ 主动摘除全部既有预挂（复用卸载清理的摘挂逻辑，暴露为 `rt.unmountAll()`）。
+- **打开**（setEnabled(true)）：标志恢复即可，下一轮 interval tick 自然恢复心跳与调度；工具短路解除。
+- 切换即时热生效，无需重启宿主；重启后从 config.json 读回。
 
 ### 4.4 评估闭环
 记录漏斗 `search 次数 → load 次数 → 实际调用次数`；搜而不 load = 排序失败信号；load 而不调用 = brief 误导。定期回流校准权重。

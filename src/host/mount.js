@@ -300,6 +300,11 @@ export function install(rt) {
   let ticking = false
   let tickStartedAt = 0
   const tick = async () => {
+    // 总开关停摆（v0.4.0）：开关关闭时整轮 tick 直接跳过——不挂载、不收敛。
+    // 心跳的停摆在 interval 回调里（见下），这里覆盖 boot/watch/手动驱动
+    // 等其余入口。rt.isEnabled && 防御：fakeRuntime 未装配 switch 模块的
+    // 单测环境保持原行为。
+    if (rt.isEnabled && !rt.isEnabled()) return
     const now = Date.now()
     if (ticking) {
       if (now - tickStartedAt < TICK_STALE_MS) return
@@ -404,6 +409,10 @@ export function install(rt) {
   // 挂 rt 上供测试驱动（单测直接调 tick，不依赖定时器）。
   rt.tickMount = tick
   rt.releaseMounts = releaseAll
+  // 总开关语义别名（v0.4.0）：switch.setEnabled(false) 经 rt.unmountAll 摘除
+  // 全部预热挂载（与卸载清理同一条 releaseAll 链路，不留残挂）。switch 在
+  // mount 之前装配时该键尚不存在，setEnabled 内以 rt.unmountAll?.() 防御。
+  rt.unmountAll = releaseAll
   // 预热视图/并集：tools.js 的 lineOf 与 router-signal 的数据源。
   rt.preheatView = {}
   rt.preheatNames = new Set()
@@ -442,6 +451,11 @@ export function install(rt) {
     // 视图），覆盖这份「纯心跳」。
     const tickMs = rt.config?.preheatTickMs ?? 30_000
     const interval = setInterval(() => {
+      // 总开关停摆（v0.4.0）：关闭时心跳与调度 tick 一起停——router-signal
+      // 的 at 是 ds-bot 判定 router 在线的唯一依据，停写 90s 新鲜窗过期后
+      // ds-bot 自动回退原生全量挂载。绝不允许「在线但不调度」导致技能
+      // 全量丢失；定时器保留（回调短路），重新打开开关即自行恢复，无需重启。
+      if (rt.isEnabled && !rt.isEnabled()) return
       writeRouterSignal()
       void tick()
     }, tickMs)

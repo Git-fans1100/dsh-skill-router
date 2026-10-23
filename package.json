@@ -1,15 +1,16 @@
 {
   "name": "dsh-skill-router",
-  "version": "0.3.1",
-  "description": "Skill Router for DeepSeek Harness — global capability dispatch: read-only skill/MCP index, capability_search (with names_only) / capability_load (brief default, section/full/ref modes) / capability_stats (read-only funnel + preheat effectiveness), unified scorer with synonym expansion, per-Bot preheat mounting with anti-double-mount handshake against ds-bot's smart-scheduling switch (SPEC.md v1.2, migration step 3 started).",
+  "version": "0.4.0",
+  "description": "Skill Router for DeepSeek Harness — global capability dispatch: read-only skill/MCP index, capability_search (with names_only) / capability_load (brief default, section/full/ref modes) / capability_stats (read-only funnel + preheat effectiveness), unified scorer with synonym expansion, per-Bot preheat mounting with anti-double-mount handshake against ds-bot's smart-scheduling switch, and a native settings section (plugin intro, live stats, master switch — SPEC.md v1.3 §3.4).",
   "type": "module",
   "main": "./index.js",
   "scripts": {
-    "check": "node --check index.js && node --check src/host/indexer.js && node --check src/host/scorer.js && node --check src/host/usage.js && node --check src/host/brief.js && node --check src/host/stats.js && node --check src/host/tools.js && node --check src/host/mount.js && echo syntax ok",
+    "check": "node --check index.js && node --check client.js && node --check src/host/indexer.js && node --check src/host/scorer.js && node --check src/host/usage.js && node --check src/host/brief.js && node --check src/host/stats.js && node --check src/host/switch.js && node --check src/host/routes.js && node --check src/host/tools.js && node --check src/host/mount.js && echo syntax ok",
     "test": "node --test test/*.test.mjs"
   },
   "files": [
     "index.js",
+    "client.js",
     "src/host/",
     "test/",
     "cordis.patch.yml",
@@ -26,6 +27,9 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
     }
   },
   "peerDependencies": {

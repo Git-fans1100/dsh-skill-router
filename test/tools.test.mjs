@@ -177,3 +177,17 @@ test('capability_load: MCP 项返回使用指引且同样计数', async () => {
   assert.ok(text.includes('mcp__'))
   assert.equal(rt.heatOf('promptx'), 1)
 })
+
+test('总开关停摆：isEnabled=false 时三工具短路返回提示且不计数', async () => {
+  const { rt, find } = fakeRuntime()
+  // 模拟 switch 模块语义（v0.4.0 起真实链路由 index.js 装配 switch 后自带）。
+  rt.enabled = false
+  rt.isEnabled = () => rt.enabled
+  const disabled = '[skill-router] Router is disabled. Native full catalog is in effect.'
+  assert.equal(await find('capability_search').execute({ query: '画图' }, { agent: { id: 's1' } }), disabled)
+  assert.equal(await find('capability_load').execute({ name: '图表生成' }, { agent: { id: 's1' } }), disabled)
+  assert.equal(await find('capability_stats').execute(), disabled)
+  // 不计数：停摆期间漏斗停在 0，不产生统计噪声。
+  assert.equal(rt.state.funnel.search, 0)
+  assert.equal(rt.state.funnel.load, 0)
+})

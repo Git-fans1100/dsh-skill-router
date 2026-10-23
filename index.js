@@ -18,6 +18,8 @@ import * as scorer from './src/host/scorer.js'
 import * as usage from './src/host/usage.js'
 import * as brief from './src/host/brief.js'
 import * as stats from './src/host/stats.js'
+import * as switchModule from './src/host/switch.js'
+import * as routes from './src/host/routes.js'
 import * as tools from './src/host/tools.js'
 import * as mount from './src/host/mount.js'
 
@@ -28,7 +30,10 @@ export const name = 'dsh-skill-router'
 // ref 资源读取（能力探测降级），SPEC 增补至 v1.1。
 // v0.3.1：capability_stats 只读统计出口（漏斗 + 预热命中率 loadPreheated），
 // SPEC 增补至 v1.2（文档标题同步校正）。
-export const version = '0.3.1'
+// v0.4.0：设置栏目与总开关（SPEC §3.4）——switch（enabled 双写 + 停摆摘挂）、
+// routes（宿主 webServer exact 路由 3 条：state/save/donation-qr）、
+// tools 三工具停摆短路、mount tick/心跳停摆接线、client.js 设置栏目 UI。
+export const version = '0.4.0'
 
 // cordis 服务注入：注册工具需要 'tools' 服务。
 // skills / agentPresets / loader 走 ctx.get() 运行时动态获取——与 ds-bot
@@ -80,15 +85,21 @@ export function createRuntime(ctx, config = {}) {
       rt.warn('save state failed:', error?.message ?? error)
     }
   }
-  // 各模块 install(rt)：索引器 → 使用统计 → brief 抽取 → 只读统计 → 工具 →
-  // 预热挂载（挂载依赖前几者的运行时函数：getIndex / rank / freshHeat /
-  // readSkillContent；tools 的 load 默认路径依赖 rt.extractBrief，stats 工具
-  // 运行期调 rt.statsText——stats 必须先于 tools 装配）。
+  // 各模块 install(rt)：索引器 → 使用统计 → brief 抽取 → 只读统计 →
+  // 总开关 → web 路由 → 工具 → 预热挂载。依赖关系：
+  //   - switch 先于 tools/mount：isEnabled/setEnabled 语义先就位（tools 的
+  //     短路与 mount 的 tick 检查都消费它；防御写法允许缺序但正常装配有序）；
+  //   - routes 依赖 switch 的 setEnabled（save 路由转调），须在其后；
+  //   - tools 的 load 默认路径依赖 rt.extractBrief、stats 工具运行期调
+  //     rt.statsText——stats 必须先于 tools 装配；
+  //   - mount 最后：暴露 unmountAll（总开关摘挂）并消费 isEnabled 停摆 tick。
   indexer.install(rt)
   scorer.install(rt)
   usage.install(rt)
   brief.install(rt)
   stats.install(rt)
+  switchModule.install(rt)
+  routes.install(rt)
   tools.install(rt)
   mount.install(rt)
   return rt

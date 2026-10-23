@@ -75,6 +75,10 @@ export function install(rt) {
     },
     output,
     async execute(args, exec) {
+      // 总开关停摆（v0.4.0）：关闭后立即短路，提示模型/用户路由已下线、宿主
+      // 原生全量目录生效。不计数（recordSearch 在短路之后才可能触达）。
+      // rt.isEnabled && 防御：未装配 switch 模块的测试环境保持原行为。
+      if (rt.isEnabled && !rt.isEnabled()) return '[skill-router] Router is disabled. Native full catalog is in effect.'
       const query = String(args.query ?? '').trim()
       if (query === '') return 'capability_search needs a non-empty query describing the task.'
       const sessionId = exec?.agent?.id ?? 'anon'
@@ -122,6 +126,9 @@ export function install(rt) {
     },
     output,
     async execute(args, exec) {
+      // 总开关停摆（v0.4.0）：与 search 同款短路语义——关闭后不提供检索与
+      // 加载服务，目录控制权完整交还宿主原生链路。
+      if (rt.isEnabled && !rt.isEnabled()) return '[skill-router] Router is disabled. Native full catalog is in effect.'
       const name = String(args.name ?? '').trim()
       if (name === '') return 'capability_load needs the exact capability name from capability_search.'
       const sessionId = exec?.agent?.id ?? 'anon'
@@ -197,6 +204,8 @@ export function install(rt) {
     parameters: {},
     output,
     async execute() {
+      // 总开关停摆（v0.4.0）：路由关闭后统计无对象（调度已停摆），同样短路。
+      if (rt.isEnabled && !rt.isEnabled()) return '[skill-router] Router is disabled. Native full catalog is in effect.'
       return rt.statsText()
     },
   }))

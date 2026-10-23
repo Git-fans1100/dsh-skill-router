@@ -214,3 +214,20 @@ test('14 天零调用且画像不再匹配 → 移出预热集', async () => {
   assert.equal(rt.preheatView['bot-1'].includes('office-xlsx'), false, '14 天零调用且画像不匹配应移出')
   assert.equal(registered.some(row => row.name === 'office-xlsx'), true, '本轮仍保留旧挂载（下一轮差异摘除后自然消失）——视图先行')
 })
+
+test('总开关停摆：isEnabled=false 时 tick 整轮跳过，重新打开即恢复', async () => {
+  const { rt, home } = makeEnv({ rows: ROWS })
+  // 模拟 switch 模块语义（v0.4.0 起真实链路由 index.js 装配 switch 后自带）。
+  rt.enabled = false
+  rt.isEnabled = () => rt.enabled
+  await rt.tickMount()
+  assert.equal(rt.preheatNames.size, 0)
+  // 心跳与调度一起停：router-signal.json 不得写出——ds-bot 的 90s 新鲜窗
+  // 过期后自动回退原生全量挂载，「关」的语义是彻底停摆（技能目录完整
+  // 交还），绝不允许「在线但不调度」导致技能全量丢失。
+  assert.ok(!existsSync(join(home, 'router-signal.json')), '停摆时不得写心跳/信号')
+  // 重新打开开关（设置界面切回「开」）：无需重启，下一轮 tick 自行恢复。
+  rt.enabled = true
+  await rt.tickMount()
+  assert.ok(existsSync(join(home, 'router-signal.json')), '重新打开后恢复信号写出')
+})
