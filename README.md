@@ -1,5 +1,7 @@
 # dsh-skill-router
 
+中文 | [English](README.en.md)
+
 DeepSeek Harness（DSH）技能调度中心插件——把「全部技能/MCP 元数据常驻每个会话上下文」改为「按需检索、按需加载」的渐进披露调度。全局生效（覆盖全部会话），技能越多，节省的上下文 token 越多。
 
 ## 功能说明
