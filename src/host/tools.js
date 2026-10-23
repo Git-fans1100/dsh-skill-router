@@ -187,4 +187,17 @@ export function install(rt) {
       return [head, '', rt.extractBrief(content)].join('\n')
     },
   }))
+
+  // capability_stats（v0.3.1，SPEC §3.3 v1.2）：只读统计出口。零参数——
+  // 数字全部来自持久化状态与内存视图，文本由 stats 模块生成（rt.statsText），
+  // 工具本体不做计算外的事，也不进任何漏斗计数。
+  ctx.tools.register(defineTool({
+    name: 'capability_stats',
+    description: 'Read-only usage statistics for this router: the search-to-load funnel, how many loads came straight from the preheated directory (no search needed), the current preheat set per bot, top used skills of the last 7 days, and circuit-breaker state. Call it when the user asks how skill routing or preheating is performing.',
+    parameters: {},
+    output,
+    async execute() {
+      return rt.statsText()
+    },
+  }))
 }

@@ -17,6 +17,7 @@ A skill dispatch center plugin for DeepSeek Harness (DSH) — it replaces "all s
 | Dual-mode switch | Follows the host smart-scheduling switch: off = keep the host's native full mounting; on = switch to this plugin's on-demand dispatch |
 | Synonym expansion | Queries are expanded through built-in Chinese-English synonym groups plus a user `synonyms` dictionary before bigram matching, so paraphrased and mixed-language queries no longer miss (v0.3.0) |
 | Brief extraction layer | `load` returns a condensed 300-800 token brief by default (route B: TOC + per-section first lines, filler and code excluded); `full:true` returns the entire text; route A (model-generated five-section summaries) activates once the host LLM channel is wired up |
+| `capability_stats` | Read-only statistics outlet (v0.3.1): search→load funnel with conversion rate, preheat hit ratio (`loadPreheated` — the share of loads taken straight from the preheated directory without a search, the self-evidencing number for the preheat layer), the current per-Bot preheat set, top used skills of the last 7 days, and circuit-breaker state; pure read, never counted into the funnel |
 
 ## How it works (why it saves tokens)
 
@@ -46,7 +47,7 @@ npm pack
 
 Standard procedure to install into a profile:
 
-1. `npm pack` produces `dsh-skill-router-0.3.0.tgz`;
+1. `npm pack` produces `dsh-skill-router-0.3.1.tgz`;
 2. Install that tgz under `~/.dsh/profiles/desktop/`;
 3. Add the entry declared by `cordis.patch.yml` (`id: skill-router` / `name: dsh-skill-router`) to the profile's cordis manifest;
 4. Restart the host and confirm the plugin loads on stdout without errors.

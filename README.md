@@ -17,6 +17,7 @@ DeepSeek Harness（DSH）技能调度中心插件——把「全部技能/MCP �
 | 开关双模式 | 跟随宿主智能调度开关：关闭=保持宿主原生全量挂载；打开=切换到本插件的按需调度 |
 | 同义扩展检索 | 查询经内置中英同义组 + `synonyms` 用户词典展开后参与 bigram 检索，意译/中英混用不再漏检（v0.3.0） |
 | brief 抽取层 | load 默认返回 300-800 token 机械精简 brief（路线 B：目录树 + 各节首句，铺陈与代码不带入）；`full:true` 返全文；路线 A（模型五段模板抽取）待宿主 LLM 通道接入后启用 |
+| `capability_stats` | 只读统计出口（v0.3.1）：search→load 漏斗与转化率、预热命中率（`loadPreheated`——未经检索直接从预热目录拿走的 load 占比，预热层价值的自证数字）、per-Bot 预热集现状、近 7 天 Top 使用、熔断状态；纯读不写、不进漏斗 |
 
 ## 实现机制（为什么省 token）
 
@@ -46,7 +47,7 @@ npm pack
 
 装入 profile 的标准流程：
 
-1. `npm pack` 得到 `dsh-skill-router-0.3.0.tgz`；
+1. `npm pack` 得到 `dsh-skill-router-0.3.1.tgz`；
 2. 在 `~/.dsh/profiles/desktop/` 安装该 tgz；
 3. 在 profile 的 cordis 清单中加入 `cordis.patch.yml` 声明的条目（`id: skill-router` / `name: dsh-skill-router`）；
 4. 重启宿主，确认 stdout 出现插件加载且无报错。
@@ -87,7 +88,7 @@ cordis 配置示例：
 
 ## 贡献指南
 
-1. 修改代码后必须通过 `npm run check` 与 `npm test`（当前 35 项单测全绿）；
+1. 修改代码后必须通过 `npm run check` 与 `npm test`（当前 60 项单测全绿）；
 2. 设计变更先改 `SPEC.md`（唯一规格依据），再动代码——评分器权重、护栏上限、brief 模板等定稿值都在 SPEC 里；
 3. 提交信息用一行说明「为什么」，中文；
 4. 新增行为必须带单测（`test/` 下按模块分文件，Node 内置 test runner）。

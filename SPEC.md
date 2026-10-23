@@ -1,4 +1,4 @@
-# dsh-skill-router 规格文档 v1.0
+# dsh-skill-router 规格文档 v1.2
 
 > 技能调度中心：面向 DeepSeek Harness（DSH）的独立插件——四级渐进披露 + 统一评分器 + 全局会话技能调度。
 > 本文档为完整实施方案，自包含，供后续开发会话直接加载执行。
@@ -98,8 +98,17 @@ capability_load(name: string, full?: boolean, section?: string, ref?: string)
     registry 暴露 base 路径 → 直接读文件；不暴露 → 返回明确提示（本技能
     不支持 ref 读取，请用 full）并计一次软失败——ref 未命中不硬失败
   → ref / section / full 互斥：同时给出按 ref > section > full 优先级取一
-  → 调用即计数：(sessionId, skillName) 写入使用统计（升温数据源）
+  → 调用即计数：(sessionId, skillName) 写入使用统计（升温数据源）；
+    技能当时在任一 Bot 预热集内（rt.preheatOf 命中）则同时记 funnel.loadPreheated
 ```
+
+capability_stats()（v1.2，只读元工具，零参数）
+  → 漏斗：search → load（转化率）→ use（use 计数后续步骤才接线，如实显示 0）
+  → 预热有效性：loadPreheated / load 比值——「模型未经检索、直接从预热
+    目录拿走」的 load 占比，是预热层价值的自证数字；load=0 时显示 n/a
+  → 预热集现状（per Bot 名单，读 rt.preheatView 内存视图）与索引规模
+  → 近 7 天 Top 使用（freshHeat(7d) 排序前 5）与熔断中的技能
+  → 纯读不写：不触碰 state、不计入任何漏斗计数
 
 - 设计决策：**capability_load 默认返回 brief 而非全文/热注册**——不依赖 DSH 轮次中途热注册技能的不确定性（风险归零），完全复刻 Claude Code Skill 工具「返回内容即读即用」的行为
 - MCP 与 SKILL 同场检索：统一索引，MCP 项的「brief」= 其工具清单摘要
@@ -138,6 +147,7 @@ capability_load(name: string, full?: boolean, section?: string, ref?: string)
 
 ### 4.4 评估闭环
 记录漏斗 `search 次数 → load 次数 → 实际调用次数`；搜而不 load = 排序失败信号；load 而不调用 = brief 误导。定期回流校准权重。
+v1.2 起漏斗增加 `loadPreheated` 维度（load 时技能在预热集内的次数）：预热命中占比越高，说明常驻目录越有效、检索往返越少——该比值经 `capability_stats` 只读露出，作为预热层效果的自证数据。
 
 ### 4.5 统一评分器的两个消费口（一份实现两处生效）
 ```text

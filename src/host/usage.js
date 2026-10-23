@@ -24,6 +24,11 @@ export function install(rt) {
   // 第 3 步可细分「load 后实际调用」再拆分）。
   rt.recordLoad = (sessionId, name) => {
     funnel('load')
+    // v0.3.1（SPEC §4.4）：预热命中记账——技能当时在任一 Bot 预热集内，
+    // 说明模型未经检索、直接从常驻目录拿走，是预热层价值的直接证据。
+    // preheatOf 由 mount 模块提供（install 晚于本模块，但 recordLoad 只在
+    // 运行期被调用，届时必然存在）；缺席（裸假运行时）按未命中计。
+    if (rt.preheatOf?.(name) === true) funnel('loadPreheated')
     bump(sessionId, name)
   }
 
