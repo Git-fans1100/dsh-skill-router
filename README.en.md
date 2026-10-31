@@ -48,7 +48,7 @@ npm pack
 
 Standard procedure to install into a profile:
 
-1. `npm pack` produces `dsh-skill-router-0.4.0.tgz`;
+1. `npm pack` produces `dsh-skill-router-0.4.2.tgz`;
 2. Install that tgz under `~/.dsh/profiles/desktop/`;
 3. Add the entry declared by `cordis.patch.yml` (`id: skill-router` / `name: dsh-skill-router`) to the profile's cordis manifest;
 4. Restart the host and confirm the plugin loads on stdout without errors.

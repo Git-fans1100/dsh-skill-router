@@ -17,8 +17,8 @@ function fakeRuntime(home, withWeb = true) {
   const rt = {
     home,
     ctx: withWeb
-      ? { web: { webServer: { register: def => registered.push(def) } } }
-      : {},
+      ? { inject: (names, cb) => cb({ webServer: { register: def => registered.push(def) } }) }
+      : { inject: (names, cb) => cb({}) },
     state: { funnel: { search: 8, load: 2, use: 0, loadPreheated: 1 } },
     index: { items: [{}, {}, {}] },
     preheatView: { botA: ['office-xlsx'] },

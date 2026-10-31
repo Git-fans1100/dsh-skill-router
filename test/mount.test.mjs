@@ -67,6 +67,9 @@ function makeEnv({ rows, failNames, agents = new Map() } = {}) {
     on: () => {},
     effect: () => {}, // 记录即弃：测试不触发插件卸载。
     tools: { register: () => {} }, // tools.install 注册元工具用，测试不执行。
+    // routes.install 经 ctx.inject(['webServer'], cb) 注册宿主路由（v0.4.1 起）；
+    // mount 测试不关心 web 面板，注入空服务 → 路由软跳过。
+    inject: (names, cb) => cb({}),
   }
   const rt = createRuntime(ctx, { home, preheatTimers: false })
   return { rt, home, agents }

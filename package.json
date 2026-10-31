@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-router",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "description": "Skill Router for DeepSeek Harness — global capability dispatch: read-only skill/MCP index, capability_search (with names_only) / capability_load (brief default, section/full/ref modes) / capability_stats (read-only funnel + preheat effectiveness), unified scorer with synonym expansion, per-Bot preheat mounting with anti-double-mount handshake against ds-bot's smart-scheduling switch, and a native settings section (plugin intro, live stats, master switch — SPEC.md v1.3 §3.4).",
   "type": "module",
   "main": "./index.js",
@@ -22,6 +22,7 @@
   ],
   "exports": {
     ".": "./index.js",
+    "./client": "./client.js",
     "./package.json": "./package.json"
   },
   "dsh": {

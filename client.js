@@ -34,7 +34,7 @@
       const h = React.createElement
 
       // 版本号三处一致之一（另两处：package.json / index.js）
-      const ROUTER_VERSION = '0.4.0'
+      const ROUTER_VERSION = '0.4.2'
       // locale 命名空间（= 插件名派生，规范同 SIMDT NS）
       const NS = 'skill-router'
       // 设置栏目 id（settings.section 列表里的唯一键）
@@ -112,6 +112,11 @@
           }
           if (!res.ok) throw new Error((data && data.message) || (t('api.httpError') + `（HTTP ${res.status}）`))
           if (data && data.success === false) throw new Error(data.message || t('api.httpError'))
+          // 宿主路由统一 { success: true, data: {...} } 外壳：成功时解包返回纯
+          // 数据，调用方直接拿 { version, enabled, ... }。无外壳响应原样返回。
+          // （v0.4.1 起 GET /state 加了外壳而此处未解包，state.enabled 恒为
+          // undefined → 开关刷新后回显为关——「自动关闭」的根因，v0.4.2 修复。）
+          if (data && typeof data === 'object' && data.success === true && 'data' in data) return data.data
           return data
         }
       }

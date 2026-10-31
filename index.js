@@ -33,7 +33,13 @@ export const name = 'dsh-skill-router'
 // v0.4.0：设置栏目与总开关（SPEC §3.4）——switch（enabled 双写 + 停摆摘挂）、
 // routes（宿主 webServer exact 路由 3 条：state/save/donation-qr）、
 // tools 三工具停摆短路、mount tick/心跳停摆接线、client.js 设置栏目 UI。
-export const version = '0.4.0'
+// v0.4.1：修复启动崩溃与设置栏目「服务未就绪」——package.json 补 ./client 导出
+//（dsh-client-modules 组合 dsh.client 需要）；routes 改用 ctx.inject(['webServer'], cb)
+// 回调注册（服务名 webServer，apply 时同步读为 undefined）。
+// v0.4.2：修复设置开关「自动关闭」——GET /state 改 {success,data} 外壳后
+// client.js 未解包，state.enabled 恒 undefined → 开关刷新后回显为关；
+// requestJson 成功路径统一解包外壳，持久化链路（config.json 双写）本身无恙。
+export const version = '0.4.2'
 
 // cordis 服务注入：注册工具需要 'tools' 服务。
 // skills / agentPresets / loader 走 ctx.get() 运行时动态获取——与 ds-bot

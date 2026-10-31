@@ -48,7 +48,7 @@ npm pack
 
 装入 profile 的标准流程：
 
-1. `npm pack` 得到 `dsh-skill-router-0.4.0.tgz`；
+1. `npm pack` 得到 `dsh-skill-router-0.4.2.tgz`；
 2. 在 `~/.dsh/profiles/desktop/` 安装该 tgz；
 3. 在 profile 的 cordis 清单中加入 `cordis.patch.yml` 声明的条目（`id: skill-router` / `name: dsh-skill-router`）；
 4. 重启宿主，确认 stdout 出现插件加载且无报错。
